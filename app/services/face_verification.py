@@ -2,7 +2,15 @@ import cv2
 import numpy as np
 from fastapi import UploadFile
 
-detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+yunet_model = "models/face_detection_yunet_2023mar.onnx"
+detector = cv2.FaceDetectorYN.create(
+    yunet_model,
+    "",
+    (320, 320),
+    0.5,
+    0.3,
+    5000
+)
 face_recognition_model = "models/face_recognition_sface_2021dec.onnx"
 recognizer = cv2.FaceRecognizerSF.create(
     face_recognition_model,
@@ -32,17 +40,21 @@ async def verify_face(
     )
 
 
-    #converting the images to gray scale
-    image_gray = cv2.cvtColor(id_image, cv2.COLOR_BGR2GRAY)
-    selfie_gray = cv2.cvtColor(id_selfie, cv2.COLOR_BGR2GRAY)
-
     #Detecting the faces
-    image_face = detector.detectMultiScale(image_gray, scaleFactor = 1.2, minNeighbors = 7)
-    selfie_face = detector.detectMultiScale(selfie_gray, scaleFactor = 1.2, minNeighbors = 7)
-    
+    #image
+    detector.setInputSize(
+        (id_image.shape[1], id_image.shape[0])
+    )
+    _ , image_face = detector.detect(id_image)
+
+    #selfie
+    detector.setInputSize(
+        (id_selfie.shape[1], id_selfie.shape[0])
+    )
+    _ , selfie_face = detector.detect(id_selfie)
 
     #validating the face in the image 
-    if len(image_face) == 0:
+    if image_face is None or len(image_face) == 0:
         return{
             "success" : False,
             "source" : "image",
@@ -59,7 +71,7 @@ async def verify_face(
 
 
     #validating the face in the selfie 
-    if len(selfie_face) == 0:
+    if selfie_face is None or len(selfie_face) == 0:
         return{
             "success" : False,
             "source" : "selfie",
@@ -107,6 +119,13 @@ async def verify_face(
         selfie_embedding,
         cv2.FaceRecognizerSF_FR_COSINE
     )
+
+    #qucik test
+    print(image_embedding.shape)
+    print(selfie_embedding.shape)
+
+    print(image_embedding[:5])
+    print(selfie_embedding[:5])
 
     #returning the results
     threshold = 0.363
